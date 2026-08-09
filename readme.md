@@ -1,4 +1,4 @@
-# MPA — My Personal Assistant
+# MPA — Multi Purpose Assistant
 
 > "all-purpose personal manager" — a local-LLM chat assistant, built around PTIT's UIS
 > student portal, that can read your class schedule, answer natural-language
