@@ -1,14 +1,3 @@
-"""
-Script tự động đăng nhập UIS (PTIT) và lấy dữ liệu thời khóa biểu tuần.
-
-CÁCH CHẠY:
-    export UIS_USERNAME="n25dccn105"
-    export UIS_PASSWORD="mat_khau_cua_ban"
-    python -m ingestion.schedule_fetch
-
-KHÔNG BAO GIỜ hardcode username/password trực tiếp trong file này.
-"""
-
 import json
 import os
 import sys
@@ -18,13 +7,14 @@ from dotenv import load_dotenv
 
 from config import DATA_DIR, get_current_semester_code
 
+load_dotenv()
+
 TARGET_API_PATH = "w-locdstkbtuanusertheohocky"
 LOGIN_URL = "https://uis.ptithcm.edu.vn/"
 SCHEDULE_URL = "https://uis.ptithcm.edu.vn/#/tkb-tuan"
 
 DEBUG = os.environ.get("UIS_DEBUG", "0") == "1"
 
-load_dotenv()
 
 def dprint(*args, **kwargs):
     if DEBUG:
@@ -122,27 +112,21 @@ def fetch_schedule(username: str, password: str, headless: bool = True) -> dict 
         return captured_data["json"]
 
 
-if __name__ == "__main__":
+def run_fetch_and_save() -> dict:
+    """Chạy fetch + lưu file, trả về dict tóm tắt. Gọi được từ script khác (workflows/, tools/)."""
     uis_username = os.environ.get("UIS_USERNAME")
     uis_password = os.environ.get("UIS_PASSWORD")
 
     if not uis_username or not uis_password:
-        print(
-            "Thiếu biến môi trường UIS_USERNAME / UIS_PASSWORD.\n"
-            "   export UIS_USERNAME='...'\n"
-            "   export UIS_PASSWORD='...'"
-        )
-        sys.exit(1)
+        return {"success": False, "error": "Thiếu UIS_USERNAME/UIS_PASSWORD trong .env"}
 
     try:
         result = fetch_schedule(uis_username, uis_password, headless=True)
     except Exception as e:
-        print(f"Lỗi: {e}")
-        sys.exit(1)
+        return {"success": False, "error": str(e)}
 
     if not result or not result.get("result"):
-        print("Không lấy được dữ liệu hợp lệ. Chạy lại với UIS_DEBUG=1 để xem chi tiết.")
-        sys.exit(1)
+        return {"success": False, "error": "Không lấy được dữ liệu hợp lệ từ UIS"}
 
     os.makedirs(DATA_DIR, exist_ok=True)
     out_path = os.path.join(DATA_DIR, f"tkb_{get_current_semester_code()}.json")
@@ -150,10 +134,23 @@ if __name__ == "__main__":
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     so_tuan = len(result["data"]["ds_tuan_tkb"])
-    print(f"Lấy TKB thành công: {so_tuan} tuần, đã lưu vào {out_path}")
-
     current_week = find_current_week(result)
-    if current_week:
-        print(f"Tuần hiện tại: {current_week['thong_tin_tuan']}")
+
+    return {
+        "success": True,
+        "so_tuan": so_tuan,
+        "out_path": out_path,
+        "current_week": current_week["thong_tin_tuan"] if current_week else None,
+    }
+
+
+if __name__ == "__main__":
+    result = run_fetch_and_save()
+    if not result["success"]:
+        print(f"Lỗi: {result['error']}")
+        sys.exit(1)
+    print(f"Lấy TKB thành công: {result['so_tuan']} tuần, đã lưu vào {result['out_path']}")
+    if result["current_week"]:
+        print(f"Tuần hiện tại: {result['current_week']}")
     else:
         print("⚠️ Hôm nay nằm ngoài phạm vi các tuần của học kỳ này (có thể đang nghỉ hè/tết).")

@@ -1,6 +1,7 @@
 import json
 from datetime import date, timedelta
 from config import get_schedule_json_path
+from sync import notion_schedule_sync
 
 WEEKDAY_VI = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
 
@@ -54,7 +55,25 @@ def _monday_of_week(base_date: date, week_offset: int = 0) -> date:
 def _weekday_vi(date_str: str) -> str:
     d = date.fromisoformat(date_str)
     return WEEKDAY_VI[d.weekday()]
+def get_all_sessions():
+    """Trả về TẤT CẢ buổi học trong toàn bộ học kỳ, đã chuẩn hóa — dùng cho sync sang Notion."""
+    data = _load_schedule()
+    tiet_map = _build_tiet_map(data)
 
+    sessions = []
+    for week in data["data"]["ds_tuan_tkb"]:
+        for s in week["ds_thoi_khoa_bieu"]:
+            formatted = _format_session(s, tiet_map)
+            sessions.append({
+                **formatted,
+                "ma_mon": s["ma_mon"],
+                "ngay": s["ngay_hoc"].split("T")[0],
+                "id_tkb": s["id_tkb"],
+                "co_so": s.get("ma_co_so", ""),
+                "giang_vien": s.get("ten_giang_vien", ""),
+                "is_nghi_day": s.get("is_nghi_day", False),
+            })
+    return sessions
 
 # ---- Tool functions ----
 
@@ -179,6 +198,28 @@ TOOLS = [
                 "required": []
             }
         }
+    },
+    {
+        "type" : "function",
+        "function": {
+            "name": "schedule_sync_to_notion",
+            "description": "Đồng bộ toàn bộ thời khóa biểu hiện có lên Notion database, "
+                        "để hiển thị trên Notion Calendar. Dùng khi user yêu cầu cập nhật/đồng bộ lịch",
+            "parameters": {
+                "type": "object", "properties": {}},
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "schedule_resync",
+            "description": (
+                "Lấy lại thời khóa biểu mới nhất từ UIS và đồng bộ lại lên Notion "
+                "trong 1 lần. Dùng khi user muốn 'cập nhật lịch mới nhất', "
+                "'refresh lịch học', hoặc nghi ngờ lịch trên Notion đã cũ."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
     }
 ]
 
@@ -192,7 +233,13 @@ def dispatch(tool_name, args):
         return schedule_find_free_slot(args["date"])
     if tool_name == "schedule_get_week_summary":
         return schedule_get_week_summary(args.get("week_offset", 0))
+    if tool_name == "schedule_sync_to_notion":
+        return notion_schedule_sync.sync_all()
+    if tool_name == "schedule_resync":
+        from workflows.resync_schedule import run_full_resync
+        return run_full_resync()
     raise ValueError(f"Unknown tool: {tool_name}")
+
 
 
 if __name__ == "__main__":

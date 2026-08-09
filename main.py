@@ -137,7 +137,7 @@ def handle_query(user_input: str, history: list | None = None) -> str:
 
 if __name__ == "__main__":
     history = []
-    print("apm at your service (gõ 'exit' để thoát)")
+    print("mpa at your service (gõ 'exit' để thoát)")
     while True:
         user_input = input("\nBạn: ")
         if user_input.lower() in ("exit", "quit"):
