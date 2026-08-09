@@ -1,5 +1,6 @@
 import requests
 import json
+import traceback
 from datetime import date
 import registry
 from config import OLLAMA_URL, MODEL
@@ -10,11 +11,40 @@ WEEKDAY_VI = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", 
 
 
 def _build_system_message():
-    # ... giữ nguyên toàn bộ, không đổi ...
+    """
+    Dựng system message gửi lên model mỗi lượt chat. Luôn chèn ngày/thứ hôm
+    nay theo giờ máy chạy thật (không để model tự đoán "hôm nay là ngày
+    nào"), cùng hướng dẫn cách dùng chú thích [Đã tính sẵn: ...] do
+    date_resolver.resolve_relative_dates() chèn vào user message.
+    """
+    today = date.today()
+    today_str = f"{today.isoformat()} ({WEEKDAY_VI[today.weekday()]})"
+
+    content = (
+        "Bạn là MPA (My Personal Assistant) — trợ lý cá nhân, trả lời bằng "
+        "tiếng Việt, ngắn gọn, tự nhiên, đi thẳng vào câu trả lời.\n\n"
+        f"Hôm nay là {today_str}.\n\n"
+        "Khi cần thông tin về lịch học, LUÔN dùng tool tương ứng (schedule_get_day, "
+        "schedule_find_free_slot, schedule_get_week_summary, schedule_sync_to_notion, "
+        "schedule_resync) thay vì tự suy đoán hoặc bịa dữ liệu — bạn không có sẵn "
+        "lịch học trong bộ nhớ, mọi thông tin phải lấy qua tool.\n\n"
+        "Nếu câu hỏi của người dùng có chứa dòng '[Đã tính sẵn: ...]', đó là ngày "
+        "tháng đã được tính sẵn bằng Python — hãy dùng trực tiếp giá trị đó khi gọi "
+        "tool, KHÔNG tự cộng trừ ngày/tuần trong đầu. Nếu câu hỏi có ý nghĩa ngày "
+        "tháng ghép phức tạp mà KHÔNG thấy chú thích này, hãy hỏi lại người dùng để "
+        "làm rõ một mốc ngày duy nhất thay vì tự đoán.\n\n"
+        "Với câu hỏi về 'tuần này'/'tuần sau'/'tuần trước', ưu tiên gọi "
+        "schedule_get_week_summary một lần thay vì gọi schedule_get_day lặp lại "
+        "nhiều lần cho từng ngày trong tuần."
+    )
+
+    return {"role": "system", "content": content}
 
 
 def _strip_system_messages(history):
-    # ... giữ nguyên ...
+    """Loại bỏ mọi message role='system' cũ khỏi history, vì system message
+    luôn được dựng lại mới (với ngày hôm nay cập nhật) ở đầu mỗi lượt chat."""
+    return [m for m in history if m.get("role") != "system"]
 
 
 def chat(user_message, history=None):
