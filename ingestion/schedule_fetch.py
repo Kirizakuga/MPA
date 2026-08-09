@@ -14,6 +14,7 @@ import os
 import sys
 from datetime import datetime
 from playwright.sync_api import sync_playwright
+from dotenv import load_dotenv
 
 from config import DATA_DIR, get_current_semester_code
 
@@ -23,6 +24,7 @@ SCHEDULE_URL = "https://uis.ptithcm.edu.vn/#/tkb-tuan"
 
 DEBUG = os.environ.get("UIS_DEBUG", "0") == "1"
 
+load_dotenv()
 
 def dprint(*args, **kwargs):
     if DEBUG:
