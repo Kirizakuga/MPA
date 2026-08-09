@@ -5,7 +5,6 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
 
-
 sys.stdout.reconfigure(encoding="utf-8")
 
 from config import DATA_DIR, get_current_semester_code
